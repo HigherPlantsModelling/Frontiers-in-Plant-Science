@@ -23,14 +23,47 @@ cobrasummary_columns = ['Name', 'Reaction', 'FBA']
 cobrasummary_index   = list(range(len(lettuce.reactions)))
 cobrasummary = pd.DataFrame(columns = cobrasummary_columns, index = cobrasummary_index)
 
-## Define Upper and Lower Bounds
+## Define Upper and Lower Bounds - Obtained From Matlab Hierarchical Model
+# 1000 ppm CO2
 Ex_CO2 = -59;
 Wc = 19.75;
 Wo = 0.85;
 Wj = 38;
+
+# 400 ppm CO2
+Ex_CO2 = -56;
+Wc = 7.82;
+Wo = 1.9;
+Wj = 37;
+
+
 lettuce.reactions.RuBisCo.upper_bound = Wc
 lettuce.reactions.RuBisO.lower_bound = Wo
 lettuce.reactions.LETC.upper_bound = Wj
+lettuce.reactions.GAPDHy.upper_bound = 0
+lettuce.reactions.GAPDHy.lower_bound = 0
+lettuce.reactions.GAPDHy_n.upper_bound = 0
+lettuce.reactions.GAPDHy_n.lower_bound = 0
+lettuce.reactions.MDHy_n.upper_bound = 0
+lettuce.reactions.MDHy_n.lower_bound = 0
+lettuce.reactions.PEPCx.upper_bound = 0
+lettuce.reactions.PEPCx.lower_bound = 0
+lettuce.reactions.PEPCx_n.upper_bound = 0
+lettuce.reactions.PEPCx_n.lower_bound = 0
+#lettuce.reactions.Ser_bio_cyt.upper_bound = 0
+#lettuce.reactions.Ser_bio_cyt.lower_bound = 0
+#lettuce.reactions.Ser_bio_cl.upper_bound = 0
+#lettuce.reactions.Ser_bio_cl.lower_bound = 0
+# lettuce.reactions.MEyc_n.upper_bound = 0
+# lettuce.reactions.MEyc_n.lower_bound = 0
+# lettuce.reactions.MEc_n.upper_bound = 0
+# lettuce.reactions.MEc_n.lower_bound = 0
+# lettuce.reactions.MEy_n.upper_bound = 0
+# lettuce.reactions.MEy_n.lower_bound = 0
+# lettuce.reactions.ME_n.upper_bound = 0
+# lettuce.reactions.ME_n.lower_bound = 0
+# lettuce.reactions.MEm_n.upper_bound = 0
+# lettuce.reactions.MEm_n.lower_bound = 0
 
 # Removing NAD reactions
 #lettuce.reactions.NADconv_mit.lower_bound = 0
@@ -136,22 +169,58 @@ lettuce.add_cons_vars(ATPaseNADPHoxidase_day)
 lettuce.add_cons_vars(ATPaseNADPHoxidase_night)
 lettuce.add_cons_vars(NADPHMaintenance_day)
 lettuce.add_cons_vars(NADPHMaintenance_night)
-#lettuce.add_cons_vars(MaintenanceDayNight)
+lettuce.add_cons_vars(MaintenanceDayNight)
 lettuce.add_cons_vars(Nitrate_Export)
 lettuce.add_cons_vars(DayNightResp)
 lettuce.add_cons_vars(NightResp)
 
+# Loopless
+loop_reactions = [lettuce.reactions.PYKc, 
+                  lettuce.reactions.PGM, 
+                  lettuce.reactions.ENO, 
+                  lettuce.reactions.EB1, 
+                  lettuce.reactions.EB2, 
+                  lettuce.reactions.ACS, 
+                  lettuce.reactions.Ser_bio_cl, 
+                  lettuce.reactions.GOGAT,
+                  lettuce.reactions.Prot32, 
+                  lettuce.reactions.OASTL,
+                  lettuce.reactions.GS]
+
+if __name__ == '__main__':
+    FVA_Sol_loopless = flux_variability_analysis(lettuce,reaction_list=loop_reactions,loopless=True)
+    lettuce.reactions.get_by_id("PYKc").upper_bound = FVA_Sol_loopless['maximum']['PYKc']
+    lettuce.reactions.get_by_id("PYKc").lower_bound = FVA_Sol_loopless['minimum']['PYKc']
+    lettuce.reactions.get_by_id("PGM").upper_bound = FVA_Sol_loopless['maximum']['PGM']
+    lettuce.reactions.get_by_id("PGM").lower_bound = FVA_Sol_loopless['minimum']['PGM']
+    lettuce.reactions.get_by_id("ENO").upper_bound = FVA_Sol_loopless['maximum']['ENO']
+    lettuce.reactions.get_by_id("ENO").lower_bound = FVA_Sol_loopless['minimum']['ENO']
+    lettuce.reactions.get_by_id("EB1").upper_bound = FVA_Sol_loopless['maximum']['EB1']
+    lettuce.reactions.get_by_id("EB1").lower_bound = FVA_Sol_loopless['minimum']['EB1']
+    lettuce.reactions.get_by_id("EB2").upper_bound = FVA_Sol_loopless['maximum']['EB2']
+    lettuce.reactions.get_by_id("EB2").lower_bound = FVA_Sol_loopless['minimum']['EB2']
+    lettuce.reactions.get_by_id("ACS").upper_bound = FVA_Sol_loopless['maximum']['ACS']
+    lettuce.reactions.get_by_id("ACS").lower_bound = FVA_Sol_loopless['minimum']['ACS']
+    lettuce.reactions.get_by_id("Ser_bio_cl").upper_bound = FVA_Sol_loopless['maximum']['Ser_bio_cl']
+    lettuce.reactions.get_by_id("Ser_bio_cl").lower_bound = FVA_Sol_loopless['minimum']['Ser_bio_cl']
+    lettuce.reactions.get_by_id("GOGAT").upper_bound = FVA_Sol_loopless['maximum']['GOGAT']
+    lettuce.reactions.get_by_id("GOGAT").lower_bound = FVA_Sol_loopless['minimum']['GOGAT']
+    lettuce.reactions.get_by_id("Prot32").upper_bound = FVA_Sol_loopless['maximum']['Prot32']
+    lettuce.reactions.get_by_id("Prot32").lower_bound = FVA_Sol_loopless['minimum']['Prot32']
+    lettuce.reactions.get_by_id("OASTL").upper_bound = FVA_Sol_loopless['maximum']['OASTL']
+    lettuce.reactions.get_by_id("OASTL").lower_bound = FVA_Sol_loopless['minimum']['OASTL']
+    lettuce.reactions.get_by_id("GS").upper_bound = FVA_Sol_loopless['maximum']['GS']
+    lettuce.reactions.get_by_id("GS").lower_bound = FVA_Sol_loopless['minimum']['GS']
 # Solve FBA
-FBA = lettuce.optimize()
-
+    FBA = lettuce.optimize()
 #lettuce.reactions.get_by_id("Exp_sucrosePhloemDay_night").lower_bound = 0
-for i in range(len(lettuce.reactions)):
-    ValFBA = FBA[i]
-    name = lettuce.reactions[i].name
-    expression = lettuce.reactions[i].reaction
-    cobrasummary.loc[i].Name = name
-    cobrasummary.loc[i].Reaction = expression
-    cobrasummary.loc[i].FBA = ValFBA
-
-prova = cobrasummary.loc[645].FBA/cobrasummary.loc[654].FBA
+    for i in range(len(lettuce.reactions)):
+        ValFBA = FBA[i]
+        name = lettuce.reactions[i].name
+        expression = lettuce.reactions[i].reaction
+        cobrasummary.loc[i].Name = name
+        cobrasummary.loc[i].Reaction = expression
+        cobrasummary.loc[i].FBA = ValFBA
+    
+    prova = cobrasummary.loc[645].FBA/cobrasummary.loc[654].FBA
 

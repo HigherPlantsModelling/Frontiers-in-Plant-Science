@@ -16,6 +16,7 @@ from cobra.flux_analysis.loopless import add_loopless, loopless_solution
 import numpy as np
 from mlxtend.plotting import heatmap
 import matplotlib as plt
+
 from pylab import *
 ## Using Cobra
 prova = cobra.io.sbml._get_doc_from_filename('Model2.xml')
@@ -40,6 +41,7 @@ variationsummary_columns = list(range(len(central_values)+2))
 variationsummary_index   = list(range(len(lettuce.reactions)))
 variationsummary = pd.DataFrame(columns = variationsummary_columns, index = variationsummary_index)
 
+# Remove thermodinamically unfeasible reactions
 
 contador = -1
 for j in range(len(central_values)):
@@ -53,13 +55,30 @@ for j in range(len(central_values)):
         lettuce.solver = 'glpk'
         
         
-        ## Define Upper and Lower Bounds
+        ## Define Upper and Lower Bounds - Obtained From Matlab Hierarchical Model
+        # 1000 ppm CO2
         Ex_CO2 = -59;
         Wc = 19.75;
-        #Wc = 30;
         Wo = 0.85;
+        
+        # 400 ppm CO2
+        #Ex_CO2 = -59;
+        #Wc = 7.82;
+        #Wo = 1.9;
+        #Wj = 37;
+        
         lettuce.reactions.RuBisCo.upper_bound = Wc
         lettuce.reactions.RuBisO.lower_bound = Wo
+        lettuce.reactions.GAPDHy.upper_bound = 0
+        lettuce.reactions.GAPDHy.lower_bound = 0
+        lettuce.reactions.GAPDHy_n.upper_bound = 0
+        lettuce.reactions.GAPDHy_n.lower_bound = 0
+        lettuce.reactions.MDHy_n.upper_bound = 0
+        lettuce.reactions.MDHy_n.lower_bound = 0
+        lettuce.reactions.PEPCx.upper_bound = 0
+        lettuce.reactions.PEPCx.lower_bound = 0
+        lettuce.reactions.PEPCx_n.upper_bound = 0
+        lettuce.reactions.PEPCx_n.lower_bound = 0
 
         ## Define Ratios
         RubiscoCarboxylation_night = lettuce.problem.Constraint(
@@ -130,21 +149,11 @@ for j in range(len(central_values)):
             - (lettuce.reactions.NADPHoxidase_cl_night.flux_expression+lettuce.reactions.NADPHoxidase_mit_night.flux_expression+lettuce.reactions.NADPHoxidase_cyt_night.flux_expression),
             lb = 0,
             ub = 0)
-        # NADPHMaintenance_day = lettuce.problem.Constraint(
-        #     lettuce.reactions.OPPP.flux_expression+lettuce.reactions.OPPPc.flux_expression+lettuce.reactions.ICDHym.flux_expression+lettuce.reactions.ICDHyc.flux_expression+lettuce.reactions.ME.flux_expression+lettuce.reactions.MEc.flux_expression
-        #     - tempo[4]*(lettuce.reactions.NADPHoxidase_cl.flux_expression+lettuce.reactions.NADPHoxidase_mit.flux_expression+lettuce.reactions.NADPHoxidase_cyt.flux_expression),
-        #     lb = 0,
-        #     ub = 0)
-        # NADPHMaintenance_night = lettuce.problem.Constraint(
-        #     lettuce.reactions.OPPPc_n.flux_expression+lettuce.reactions.OPPP_n.flux_expression+lettuce.reactions.ICDHym_n.flux_expression+lettuce.reactions.ICDHyc_n.flux_expression+lettuce.reactions.ME_n.flux_expression+lettuce.reactions.MEc_n.flux_expression
-        #     - tempo[5]*(lettuce.reactions.NADPHoxidase_cl_night.flux_expression+lettuce.reactions.NADPHoxidase_mit_night.flux_expression+lettuce.reactions.NADPHoxidase_cyt_night.flux_expression),
-        #     lb = 0,
-        #     ub = 0)
-        # MaintenanceDayNight = lettuce.problem.Constraint(
-        #     lettuce.reactions.ATPase_cl.flux_expression+lettuce.reactions.ATPase_mit.flux_expression+lettuce.reactions.ATPase_cyt.flux_expression
-        #     - tempo[4]*(lettuce.reactions.ATPase_cl_night.flux_expression+lettuce.reactions.ATPase_mit_night.flux_expression+lettuce.reactions.ATPase_cyt_night.flux_expression),
-        #     lb = 0,
-        #     ub = 0)
+        MaintenanceDayNight = lettuce.problem.Constraint(
+             lettuce.reactions.ATPase_cl.flux_expression+lettuce.reactions.ATPase_mit.flux_expression+lettuce.reactions.ATPase_cyt.flux_expression
+             - tempo[4]*(lettuce.reactions.ATPase_cl_night.flux_expression+lettuce.reactions.ATPase_mit_night.flux_expression+lettuce.reactions.ATPase_cyt_night.flux_expression),
+             lb = 0,
+             ub = 0)
         DayNightResp = lettuce.problem.Constraint(
             -tempo[4]*lettuce.reactions.Ex_CO2.flux_expression - lettuce.reactions.Ex_CO2_night.flux_expression,
             lb = 0,
@@ -156,21 +165,59 @@ for j in range(len(central_values)):
         lettuce.add_cons_vars(ATPaseNADPHoxidase_night)
         lettuce.add_cons_vars(NADPHMaintenance_day)
         lettuce.add_cons_vars(NADPHMaintenance_night)
-        #lettuce.add_cons_vars(MaintenanceDayNight)
+        lettuce.add_cons_vars(MaintenanceDayNight)
         
-        # Solve FBA
-        FBA = lettuce.optimize()
-
-        #lettuce.reactions.get_by_id("Exp_sucrosePhloemDay_night").lower_bound = 0
-        for k in range(len(lettuce.reactions)):
-            ValFBA = FBA[k]
+        # Remove thermodynamically infeasible reactions
+        loop_reactions = [lettuce.reactions.PYKc, 
+                          lettuce.reactions.PGM, 
+                          lettuce.reactions.ENO, 
+                          lettuce.reactions.EB1, 
+                          lettuce.reactions.EB2, 
+                          lettuce.reactions.ACS, 
+                          lettuce.reactions.Ser_bio_cl, 
+                          lettuce.reactions.GOGAT,
+                          lettuce.reactions.Prot32, 
+                          lettuce.reactions.OASTL,
+                          lettuce.reactions.GS]
+        if __name__ == '__main__':
+            FVA_Sol_loopless = flux_variability_analysis(lettuce,reaction_list=loop_reactions,loopless=True)
+    
+            lettuce.reactions.get_by_id("PYKc").upper_bound = FVA_Sol_loopless['maximum']['PYKc']
+            lettuce.reactions.get_by_id("PYKc").lower_bound = FVA_Sol_loopless['minimum']['PYKc']
+            lettuce.reactions.get_by_id("PGM").upper_bound = FVA_Sol_loopless['maximum']['PGM']
+            lettuce.reactions.get_by_id("PGM").lower_bound = FVA_Sol_loopless['minimum']['PGM']
+            lettuce.reactions.get_by_id("ENO").upper_bound = FVA_Sol_loopless['maximum']['ENO']
+            lettuce.reactions.get_by_id("ENO").lower_bound = FVA_Sol_loopless['minimum']['ENO']
+            lettuce.reactions.get_by_id("EB1").upper_bound = FVA_Sol_loopless['maximum']['EB1']
+            lettuce.reactions.get_by_id("EB1").lower_bound = FVA_Sol_loopless['minimum']['EB1']
+            lettuce.reactions.get_by_id("EB2").upper_bound = FVA_Sol_loopless['maximum']['EB2']
+            lettuce.reactions.get_by_id("EB2").lower_bound = FVA_Sol_loopless['minimum']['EB2']
+            lettuce.reactions.get_by_id("ACS").upper_bound = FVA_Sol_loopless['maximum']['ACS']
+            lettuce.reactions.get_by_id("ACS").lower_bound = FVA_Sol_loopless['minimum']['ACS']
+            lettuce.reactions.get_by_id("Ser_bio_cl").upper_bound = FVA_Sol_loopless['maximum']['Ser_bio_cl']
+            lettuce.reactions.get_by_id("Ser_bio_cl").lower_bound = FVA_Sol_loopless['minimum']['Ser_bio_cl']
+            lettuce.reactions.get_by_id("GOGAT").upper_bound = FVA_Sol_loopless['maximum']['GOGAT']
+            lettuce.reactions.get_by_id("GOGAT").lower_bound = FVA_Sol_loopless['minimum']['GOGAT']
+            lettuce.reactions.get_by_id("Prot32").upper_bound = FVA_Sol_loopless['maximum']['Prot32']
+            lettuce.reactions.get_by_id("Prot32").lower_bound = FVA_Sol_loopless['minimum']['Prot32']
+            lettuce.reactions.get_by_id("OASTL").upper_bound = FVA_Sol_loopless['maximum']['OASTL']
+            lettuce.reactions.get_by_id("OASTL").lower_bound = FVA_Sol_loopless['minimum']['OASTL']
+            lettuce.reactions.get_by_id("GS").upper_bound = FVA_Sol_loopless['maximum']['GS']
+            lettuce.reactions.get_by_id("GS").lower_bound = FVA_Sol_loopless['minimum']['GS']
             
-            name = lettuce.reactions[k].name
-            expression = lettuce.reactions[k].reaction
-            
-            cobrasummary.loc[k][0] = name
-            cobrasummary.loc[k][1] = expression
-            cobrasummary.loc[k][contador+2] = ValFBA
+            # Solve FBA
+            FBA = lettuce.optimize()
+    
+            #lettuce.reactions.get_by_id("Exp_sucrosePhloemDay_night").lower_bound = 0
+            for k in range(len(lettuce.reactions)):
+                ValFBA = FBA[k]
+                
+                name = lettuce.reactions[k].name
+                expression = lettuce.reactions[k].reaction
+                
+                cobrasummary.loc[k][0] = name
+                cobrasummary.loc[k][1] = expression
+                cobrasummary.loc[k][contador+2] = ValFBA
             
 variationsummary_columns = list(range(len(central_values)+2))
 variationsummary_index   = list(range(len(lettuce.reactions)))
@@ -195,7 +242,7 @@ for k in range(len(lettuce.reactions)):
         counter3 = -1
         for n in range(len(sensitivity_fractions)-1):
             counter3 = counter3+1
-            calc[n] = (abs((cobrasummary.loc[k][size*counter2+counter3+3]-cobrasummary.loc[k][size*counter2+counter3+2]))/span[m,n])/(max(cobrasummary.loc[k][size*counter2+2:size*(counter2+1)+1])-min(cobrasummary.loc[k][size*counter2+2:size*(counter2+1)+1]))
+            calc[n] = ((cobrasummary.loc[k][size*counter2+counter3+3]-cobrasummary.loc[k][size*counter2+counter3+2])/span[m,n])/(max(cobrasummary.loc[k][size*counter2+2:size*(counter2+1)+1])-min(cobrasummary.loc[k][size*counter2+2:size*(counter2+1)+1]))
             calc[np.isnan(calc[n])]=0
             if max(cobrasummary.loc[k][size*counter2+2:size*(counter2+1)+1])-min(cobrasummary.loc[k][size*counter2+2:size*(counter2+1)+1]) < 1e-3:
                 calc[n] = 0
@@ -227,41 +274,48 @@ for p in range(len(Night_Names)):
     night_variation[p] = np_variationsummary[nightnames[p]]
     
 minval_day = np.amin(day_variation[:,2:7][day_variation[:,2:7] != -np.inf])
-maxval_day = norm_night_variation = night_variation[:,2:8].astype(int)/maxval_night
+maxval_day = np.amax(day_variation[:,2:7][day_variation[:,2:7] != np.inf])
 np.amax(day_variation[:,2:7][day_variation[:,2:7] != np.inf])
 
 minval_night = np.amin(night_variation[:,2:7][night_variation[:,2:7] != -np.inf])
 maxval_night = np.amax(night_variation[:,2:7][night_variation[:,2:7] != np.inf])
 
 # Divide both matrix by maximum of day and night
-norm_day_variation = day_variation[:,2:8].astype(int)/maxval_day
+norm_day_variation = day_variation[:,2:8].astype(int)#/maxval_day
+norm_night_variation = night_variation[:,2:8].astype(int)#/maxval_night
 
-fig, ax = heatmap(norm_day_variation, column_names=RatioNames, row_names=Day_Names, figsize=(20, 10), cell_values=False)
+concatenate = np.concatenate([norm_day_variation, norm_night_variation])
+
+import seaborn as sns;
+csfont = {'fontname':'Times New Roman'}
+cmap = sns.diverging_palette(230, 20, as_cmap=True)
+sns.set(font_scale=1)
+ax = sns.heatmap(norm_day_variation, linewidths=.5, cmap=cmap, vmin=np.min(concatenate), vmax=np.max(concatenate), center=0, xticklabels=RatioNames, yticklabels=Day_Names)
+sns.set(rc={"figure.dpi":300, 'savefig.dpi':300})
+plt.title('Normalized Flux Variability of Day Metabolism', fontsize=14, **csfont)
+plt.yticks(rotation=0) 
 plt.rcParams.update({'font.family':'Times'})
-plt.title('a) Normalized Flux Variability of Day Metabolism', fontsize=16, **csfont)
+plt.rcParams.update({'font.size': 14})
+for tick in ax.get_xticklabels():
+    tick.set_fontname("Times New Roman")
+for tick in ax.get_yticklabels():
+    tick.set_fontname("Times New Roman")
+plt.savefig("sampleday.png", dpi=1200)
+#ax.yaxis.set_label_position("right")
+#ax.yaxis.tick_right()  
+
+
+import seaborn as sns;
+cmap = sns.diverging_palette(230, 20, as_cmap=True)
+sns.set(font_scale=1)
+ax = sns.heatmap(norm_night_variation, linewidths=.5, cmap=cmap, vmin=np.min(concatenate), vmax=np.max(concatenate), center=0, xticklabels=RatioNames, yticklabels=Night_Names)
+sns.set(rc={"figure.dpi":300, 'savefig.dpi':300})
+plt.rcParams.update({'font.family':'Times'})
+plt.title('Normalized Flux Variability of Night Metabolism', fontsize=14, **csfont)
 plt.figure(dpi=1200)
+plt.rcParams.update({'font.size': 14})
 for tick in ax.get_xticklabels():
     tick.set_fontname("Times New Roman")
 for tick in ax.get_yticklabels():
     tick.set_fontname("Times New Roman")
-#ax.yaxis.set_label_position("right")
-#ax.yaxis.tick_right()  
-fig.tight_layout()
-fig.savefig('DayMet.jpg', dpi=1200)
-
-
-#plt.yaxis.set_label_position("right")
-
-fig, ax = heatmap(norm_night_variation, column_names=RatioNames, row_names=Night_Names, figsize=(20, 10), cell_values=False)
-plt.rcParams.update({'font.family':'Times'})
-plt.title('b) Normalized Flux Variability of Night Metabolism', fontsize=16, **csfont)
-for tick in ax.get_xticklabels():
-    tick.set_fontname("Times New Roman")
-for tick in ax.get_yticklabels():
-    tick.set_fontname("Times New Roman")
-fig.tight_layout()
-fig.savefig('NightMet.jpg', dpi=1200)
-#ax.yaxis.set_label_position("right")
-#ax.yaxis.tick_right()  
-
 
